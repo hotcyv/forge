@@ -794,7 +794,7 @@ public class StaticData {
                     if (!loadNonLegalCards && CardEdition.Type.FUNNY.equals(e.getType()))
                         continue;
                     if (!cniHeader) {
-                        cardNotImplemented.append("Edition: ").append(e.getName()).append(" ").append("(").append(e.getCode()).append("/").append(e.getCode2()).append(")\n");
+                        cardNotImplemented.append("\nEdition: ").append(e.getName()).append(" ").append("(").append(e.getCode()).append("/").append(e.getCode2()).append(")\n");
                         cniHeader = true;
                     }
                     cardNotImplemented.append(" ").append(c).append("\n");
@@ -803,7 +803,7 @@ public class StaticData {
                 }
 
                 // check the front image
-                imagePath = ImageUtil.getImageRelativePath(cp, false, true, false);
+                imagePath = ImageUtil.getImageRelativePath(cp, "", true, false);
                 if (imagePath != null) {
                     File file = ImageKeys.getImageFile(imagePath);
                     if (file == null && ImageKeys.hasSetLookup(imagePath))
@@ -820,7 +820,7 @@ public class StaticData {
 
                 // check the back face
                 if (cp.hasBackFace()) {
-                    imagePath = ImageUtil.getImageRelativePath(cp, true, true, false);
+                    imagePath = ImageUtil.getImageRelativePath(cp, "back", true, false);
                     if (imagePath != null) {
                         File file = ImageKeys.getImageFile(imagePath);
                         if (file == null && ImageKeys.hasSetLookup(imagePath))

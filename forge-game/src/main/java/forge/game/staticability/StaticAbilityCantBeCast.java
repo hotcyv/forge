@@ -45,7 +45,7 @@ public class StaticAbilityCantBeCast {
         allp.add(card);
         for (final Card ca : allp) {
             for (final StaticAbility stAb : ca.getStaticAbilities()) {
-                if (!stAb.getParam("Mode").equals(CantBeCast) || stAb.isSuppressed() || !stAb.checkConditions()) {
+                if (!stAb.checkConditions(CantBeCast)) {
                     continue;
                 }
                 if (applyCantBeCastAbility(stAb, spell, card, activator)) {
@@ -63,7 +63,7 @@ public class StaticAbilityCantBeCast {
         final Game game = activator.getGame();
         for (final Card ca : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
             for (final StaticAbility stAb : ca.getStaticAbilities()) {
-                if (!stAb.getParam("Mode").equals(CantBeActivated) || stAb.isSuppressed() || !stAb.checkConditions()) {
+                if (!stAb.checkConditions(CantBeActivated)) {
                     continue;
                 }
                 if (applyCantBeActivatedAbility(stAb, spell, card, activator)) {
@@ -78,7 +78,7 @@ public class StaticAbilityCantBeCast {
         final Game game = activator.getGame();
         for (final Card ca : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
             for (final StaticAbility stAb : ca.getStaticAbilities()) {
-                if (!stAb.getParam("Mode").equals(CantPlayLand) || stAb.isSuppressed() || !stAb.checkConditions()) {
+                if (!stAb.checkConditions(CantPlayLand)) {
                     continue;
                 }
                 if (applyCantPlayLandAbility(stAb, card, activator)) {
@@ -138,9 +138,9 @@ public class StaticAbilityCantBeCast {
 
         if (stAb.hasParam("NumLimitEachTurn") && activator != null) {
             int limit = Integer.parseInt(stAb.getParam("NumLimitEachTurn"));
-            String valid = stAb.hasParam("ValidCard") ? stAb.getParam("ValidCard") : "Card";
+            String valid = stAb.getParamOrDefault("ValidCard", "Card");
             List<Card> thisTurnCast = CardUtil.getThisTurnCast(valid, card, stAb);
-            if (CardLists.filterControlledBy(thisTurnCast, activator).size() < limit) {
+            if (CardLists.filterControlledByAsList(thisTurnCast, activator).size() < limit) {
                 return false;
             }
         }

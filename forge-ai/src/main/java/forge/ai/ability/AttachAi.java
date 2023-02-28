@@ -44,6 +44,7 @@ import forge.game.player.PlayerActionConfirmMode;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.TargetRestrictions;
 import forge.game.staticability.StaticAbility;
+import forge.game.staticability.StaticAbilityCantAttackBlock;
 import forge.game.trigger.Trigger;
 import forge.game.trigger.TriggerType;
 import forge.game.zone.ZoneType;
@@ -121,7 +122,7 @@ public class AttachAi extends SpellAbilityAi {
 
         if (ComputerUtilAbility.getAbilitySourceName(sa).equals("Chained to the Rocks")) {
             final SpellAbility effectExile = AbilityFactory.getAbility(source.getSVar("TrigExile"), source);
-            effectExile.setActivatingPlayer(ai);
+            effectExile.setActivatingPlayer(ai, true);
             final TargetRestrictions exile_tgt = effectExile.getTargetRestrictions();
             final List<Card> targets = CardUtil.getValidCardsToTarget(exile_tgt, effectExile);
             return !targets.isEmpty();
@@ -661,7 +662,8 @@ public class AttachAi extends SpellAbilityAi {
             if (card.hasKeyword(Keyword.HORSEMANSHIP)) {
                 cardPriority += 40;
             }
-            if (card.hasKeyword("Unblockable")) {
+            //check if card is generally unblockable
+            if (StaticAbilityCantAttackBlock.cantBlockBy(card, null)) {
                 cardPriority += 50;
             }
             // Prefer "tap to deal damage"
@@ -1303,20 +1305,35 @@ public class AttachAi extends SpellAbilityAi {
      * @return the card
      */
     private static Card attachToCardAIPreferences(final Player aiPlayer, final SpellAbility sa, final boolean mandatory) {
-        final TargetRestrictions tgt = sa.getTargetRestrictions();
-        final Card attachSource = sa.getHostCard();
         // TODO AttachSource is currently set for the Source of the Spell, but
         // at some point can support attaching a different card
+        Card attachSource = sa.getHostCard();
+        if (sa.hasParam("Object")) {
+            CardCollection objs = AbilityUtils.getDefinedCards(attachSource, sa.getParam("Object"), sa);
+            if (objs.isEmpty()) {
+                if (!mandatory) {
+                    return null;
+                }
+            } else {
+                attachSource = objs.get(0);
+            }
+        }
 
         // Don't equip if DontEquip SVar is set
         if (attachSource.hasSVar("DontEquip")) {
             return null;
         }
 
+        // is no attachment so no using attach
+        if (!mandatory && !attachSource.isAttachment()) {
+            return null;
+        }
+
+        final TargetRestrictions tgt = sa.getTargetRestrictions();
+
         // Is a SA that moves target attachment
         if ("MoveTgtAura".equals(sa.getParam("AILogic"))) {
-            CardCollection list = new CardCollection(CardUtil.getValidCardsToTarget(tgt, sa));
-            list = CardLists.filter(list, Predicates.or(CardPredicates.isControlledByAnyOf(aiPlayer.getOpponents()), new Predicate<Card>() {
+            CardCollection list = CardLists.filter(CardUtil.getValidCardsToTarget(tgt, sa), Predicates.or(CardPredicates.isControlledByAnyOf(aiPlayer.getOpponents()), new Predicate<Card>() {
                 @Override
                 public boolean apply(final Card card) {
                     return ComputerUtilCard.isUselessCreature(aiPlayer, card.getAttachedTo());
@@ -1325,7 +1342,7 @@ public class AttachAi extends SpellAbilityAi {
 
             return !list.isEmpty() ? ComputerUtilCard.getBestAI(list) : null;
         } else if ("Unenchanted".equals(sa.getParam("AILogic"))) {
-            CardCollection list = new CardCollection(CardUtil.getValidCardsToTarget(tgt, sa));
+            List<Card> list = CardUtil.getValidCardsToTarget(tgt, sa);
             CardCollection preferred = CardLists.filter(list, new Predicate<Card>() {
                 @Override
                 public boolean apply(final Card card) {
@@ -1335,31 +1352,26 @@ public class AttachAi extends SpellAbilityAi {
             return preferred.isEmpty() ? Aggregates.random(list) : Aggregates.random(preferred);
         }
 
-        // is no attachment so no using attach
-        if (!attachSource.isAttachment()) {
-            return null;
-        }
-
         // Don't fortify if already fortifying
         if (attachSource.isFortification() && attachSource.getAttachedTo() != null
                 && attachSource.getAttachedTo().getController() == aiPlayer) {
             return null;
         }
 
-        CardCollection list = null;
+        List<Card> list = null;
         if (tgt == null) {
             list = AbilityUtils.getDefinedCards(attachSource, sa.getParam("Defined"), sa);
         } else {
-            list = CardLists.filter(CardUtil.getValidCardsToTarget(tgt, sa), CardPredicates.canBeAttached(attachSource, sa));
+            list = CardUtil.getValidCardsToTarget(tgt, sa);
         }
 
         if (list.isEmpty()) {
             return null;
         }
-        CardCollection prefList = list;
+        CardCollection prefList = CardLists.filter(list, CardPredicates.canBeAttached(attachSource, sa));
 
         // Filter AI-specific targets if provided
-        prefList = ComputerUtil.filterAITgts(sa, aiPlayer, list, true);
+        prefList = ComputerUtil.filterAITgts(sa, aiPlayer, prefList, true);
 
         Card c = attachGeneralAI(aiPlayer, sa, prefList, mandatory, attachSource, sa.getParam("AILogic"));
 
@@ -1415,8 +1427,9 @@ public class AttachAi extends SpellAbilityAi {
 
         if (c == null && mandatory) {
             CardLists.shuffle(list);
-            c = list.getFirst();
+            c = list.get(0);
         }
+
         return c;
     }
 
@@ -1551,7 +1564,7 @@ public class AttachAi extends SpellAbilityAi {
             }
         }
 
-        final boolean evasive = keyword.equals("Unblockable") || keyword.equals("Fear")
+        final boolean evasive = keyword.equals("Fear")
                 || keyword.equals("Intimidate") || keyword.equals("Shadow")
                 || keyword.equals("Flying") || keyword.equals("Horsemanship")
                 || keyword.endsWith("walk") || keyword.equals("All creatures able to block CARDNAME do so.");
@@ -1559,8 +1572,9 @@ public class AttachAi extends SpellAbilityAi {
 
         boolean canBeBlocked = false;
         for (Player opp : ai.getOpponents()) {
-            if (CombatUtil.canBeBlocked(card, opp)) {
+            if (CombatUtil.canBeBlocked(card, null, opp)) {
                 canBeBlocked = true;
+                break;
             }
         }
 
@@ -1569,7 +1583,7 @@ public class AttachAi extends SpellAbilityAi {
                     && canBeBlocked
                     && ComputerUtilCombat.canAttackNextTurn(card);
         } else if (keyword.equals("Haste")) {
-            return card.hasSickness() && ph.isPlayerTurn(sa.getActivatingPlayer()) && !card.isTapped()
+            return card.hasSickness() && ph.isPlayerTurn(ai) && !card.isTapped()
                     && card.getNetCombatDamage() + powerBonus > 0
                     && !ph.getPhase().isAfter(PhaseType.COMBAT_DECLARE_ATTACKERS)
                     && ComputerUtilCombat.canAttackNextTurn(card);

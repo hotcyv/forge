@@ -1,19 +1,13 @@
 package forge.adventure.character;
 
-import com.badlogic.gdx.graphics.g2d.Animation;
-import com.badlogic.gdx.graphics.g2d.Batch;
-import com.badlogic.gdx.graphics.g2d.Sprite;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.*;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.utils.Array;
 import forge.adventure.stage.SpriteGroup;
 import forge.adventure.util.Config;
-
 import java.util.HashMap;
-
 /**
  * CharacterSprite base class for animated sprites on the map
  */
@@ -24,12 +18,14 @@ public class CharacterSprite extends MapActor {
     private Animation<TextureRegion> currentAnimation = null;
     private AnimationTypes currentAnimationType = AnimationTypes.Idle;
     private AnimationDirections currentAnimationDir = AnimationDirections.None;
-    private Sprite avatar;
+    private final Array<Sprite> avatar=new Array<>();
     public boolean hidden = false;
+    private String atlasPath;
 
     public CharacterSprite(int id,String path) {
         super(id);
         collisionHeight=0.4f;
+        atlasPath = path;
         load(path);
     }
     public CharacterSprite(String path) {
@@ -37,20 +33,17 @@ public class CharacterSprite extends MapActor {
     }
 
     @Override
-    void updateBoundingRect() { //We want a slimmer box for the player entity so it can navigate terrain without getting stuck.
-        boundingRect = new Rectangle(getX() + 4, getY(), getWidth() - 6, getHeight() * collisionHeight);
+    void updateBoundingRect() {//We want a slimmer box for the player entity so it can navigate terrain without getting stuck.
+        boundingRect.set(getX() + 4, getY(), getWidth() - 6, getHeight() * collisionHeight);
     }
 
     protected void load(String path) {
+        if(path==null||path.isEmpty())return;
         TextureAtlas atlas = Config.instance().getAtlas(path);
-        /*
-        for (Texture texture : new ObjectSet.ObjectSetIterator<>( atlas.getTextures()))
-            texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
-         */
         animations.clear();
         for (AnimationTypes stand : AnimationTypes.values()) {
             if (stand == AnimationTypes.Avatar) {
-                avatar = atlas.createSprite(stand.toString());
+                avatar.addAll(atlas.createSprites(stand.toString()));
                 continue;
             }
             HashMap<AnimationDirections, Animation<TextureRegion>> dirs = new HashMap<>();
@@ -61,8 +54,14 @@ public class CharacterSprite extends MapActor {
                     anim = atlas.createSprites(stand.toString());
                 else
                     anim = atlas.createSprites(stand.toString() + dir.toString());
+
                 if (anim.size != 0) {
                     dirs.put(dir, new Animation<>(0.2f, anim));
+                    if(getWidth()==0.0)//init size onload
+                    {
+                        setWidth(anim.first().getWidth());
+                        setHeight(anim.first().getHeight());
+                    }
                 }
             }
             animations.put(stand, dirs);
@@ -215,18 +214,39 @@ public class CharacterSprite extends MapActor {
     @Override
     public void draw(Batch batch, float parentAlpha) {
         if (currentAnimation == null || hidden)
+        {
+
             return;
+        }
+        super.draw(batch,parentAlpha);
+        beforeDraw(batch,parentAlpha);
         TextureRegion currentFrame = currentAnimation.getKeyFrame(timer, true);
         setHeight(currentFrame.getRegionHeight());
         setWidth(currentFrame.getRegionWidth());
-        batch.draw(currentFrame, getX(), getY());
+        Color oldColor=batch.getColor().cpy();
+        batch.setColor(getColor());
+        float scale = 1f;
+        if (this instanceof EnemySprite) {
+            scale = ((EnemySprite) this).getData().scale;
+        }
+        batch.draw(currentFrame, getX(), getY(), getWidth()*scale, getHeight()*scale);
+        batch.setColor(oldColor);
         super.draw(batch,parentAlpha);
         //batch.draw(getDebugTexture(),getX(),getY());
 
     }
 
+
     public Sprite getAvatar() {
-        return avatar;
+        if (avatar == null || avatar.isEmpty())
+            return null;
+        return avatar.first();
+    }
+    public String getAtlasPath() {
+        return atlasPath;
+    }
+    public Sprite getAvatar(int index) {
+        return avatar.get(index);
     }
 
     public enum AnimationTypes {

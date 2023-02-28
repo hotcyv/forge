@@ -14,6 +14,7 @@ import forge.ai.SpellAbilityAi;
 import forge.game.ability.AbilityUtils;
 import forge.game.ability.effects.CharmEffect;
 import forge.game.card.Card;
+import forge.game.keyword.Keyword;
 import forge.game.player.Player;
 import forge.game.spellability.AbilitySub;
 import forge.game.spellability.SpellAbility;
@@ -26,7 +27,6 @@ public class CharmAi extends SpellAbilityAi {
     protected boolean checkApiLogic(Player ai, SpellAbility sa) {
         final Card source = sa.getHostCard();
         List<AbilitySub> choices = CharmEffect.makePossibleOptions(sa);
-        Collections.shuffle(choices);
 
         final int num;
         final int min;
@@ -35,6 +35,11 @@ public class CharmAi extends SpellAbilityAi {
         } else {
             num = AbilityUtils.calculateAmount(source, sa.getParamOrDefault("CharmNum", "1"), sa);
             min = sa.hasParam("MinCharmNum") ? AbilityUtils.calculateAmount(source, sa.getParam("MinCharmNum"), sa) : num;
+        }
+
+        // only randomize if not all possible together
+        if (num < choices.size() || source.hasKeyword(Keyword.ESCALATE)) {
+            Collections.shuffle(choices);
         }
 
         boolean timingRight = sa.isTrigger(); //is there a reason to play the charm now?
@@ -88,7 +93,7 @@ public class CharmAi extends SpellAbilityAi {
         AiController aic = ((PlayerControllerAi) ai.getController()).getAi();
         // First pass using standard canPlayAi() for good choices
         for (AbilitySub sub : choices) {
-            sub.setActivatingPlayer(ai);
+            sub.setActivatingPlayer(ai, true);
             if (AiPlayDecision.WillPlay == aic.canPlaySa(sub)) {
                 chosenList.add(sub);
                 if (chosenList.size() == num) {
@@ -219,13 +224,13 @@ public class CharmAi extends SpellAbilityAi {
         List<AbilitySub> chosenList = Lists.newArrayList();
         AiController aic = ((PlayerControllerAi) ai.getController()).getAi();
         for (AbilitySub sub : choices) {
-            sub.setActivatingPlayer(ai);
+            sub.setActivatingPlayer(ai, true);
             // Assign generic good choice to fill up choices if necessary 
             if ("Good".equals(sub.getParam("AILogic")) && aic.doTrigger(sub, false)) {
                 goodChoice = sub;
             } else {
                 // Standard canPlayAi()
-                sub.setActivatingPlayer(ai);
+                sub.setActivatingPlayer(ai, true);
                 if (AiPlayDecision.WillPlay == aic.canPlaySa(sub)) {
                     chosenList.add(sub);
                     if (chosenList.size() == min) {

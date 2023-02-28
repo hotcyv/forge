@@ -18,8 +18,11 @@
 package forge.ai;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
+import forge.game.staticability.StaticAbility;
 import forge.game.staticability.StaticAbilityAssignCombatDamageAsUnblocked;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -96,7 +99,7 @@ public class AiAttackController {
 
     public AiAttackController(final Player ai, boolean nextTurn) {
         this.ai = ai;
-        defendingOpponent = choosePreferredDefenderPlayer(ai);
+        defendingOpponent = choosePreferredDefenderPlayer(ai, true);
         myList = ai.getCreaturesInPlay();
         this.nextTurn = nextTurn;
         refreshCombatants(defendingOpponent);
@@ -104,7 +107,7 @@ public class AiAttackController {
 
     public AiAttackController(final Player ai, Card attacker) {
         this.ai = ai;
-        defendingOpponent = choosePreferredDefenderPlayer(ai);
+        defendingOpponent = choosePreferredDefenderPlayer(ai, true);
         this.oppList = getOpponentCreatures(defendingOpponent);
         myList = ai.getCreaturesInPlay();
         this.nextTurn = false;
@@ -167,6 +170,9 @@ public class AiAttackController {
      * No strategy to secure a second place instead, since Forge has no variant for that
      */
     public static Player choosePreferredDefenderPlayer(Player ai) {
+        return choosePreferredDefenderPlayer(ai, false);
+    }
+    public static Player choosePreferredDefenderPlayer(Player ai, boolean forCombatDmg) {
         Player defender = ai.getWeakestOpponent(); //Concentrate on opponent within easy kill range
 
         // TODO for multiplayer combat avoid players with cantLose or (if not playing infect) cantLoseForZeroOrLessLife and !canLoseLife
@@ -174,10 +180,24 @@ public class AiAttackController {
         if (defender.getLife() > 8) {
             // TODO connect with evaluateBoardPosition and only fall back to random when no player is the biggest threat by a fair margin
 
+            List<Player> opps = Lists.newArrayList(ai.getOpponents());
+            if (forCombatDmg) {
+                for (Player p : ai.getOpponents()) {
+                    if (p.isMonarch() && ai.canBecomeMonarch()) {
+                        // just increase the odds for now instead of being fully predictable
+                        // as it could lead to other too complex factors giving this reasoning negative impact
+                        opps.add(p);
+                    }
+                    if (p.hasInitiative()) {
+                        opps.add(p);
+                    }
+                }
+            }
+
             // TODO should we cache the random for each turn? some functions like shouldPumpCard base their decisions on the assumption who will be attacked
 
             //Otherwise choose a random opponent to ensure no ganging up on players
-            return Aggregates.random(ai.getOpponents());
+            return Aggregates.random(opps);
         }
         return defender;
     }
@@ -359,7 +379,7 @@ public class AiAttackController {
             }
         });
 
-        final List<Card> notNeededAsBlockers = new CardCollection(attackers);
+        final CardCollection notNeededAsBlockers = new CardCollection(attackers);
 
         // don't hold back creatures that can't block any of the human creatures
         final List<Card> blockers = getPossibleBlockers(attackers, opponentsAttackers, true);
@@ -378,7 +398,7 @@ public class AiAttackController {
             int thresholdMod = 0;
             int lastAcceptableBaselineLife = 0;
             if (pilotsNonAggroDeck) {
-                lastAcceptableBaselineLife = ComputerUtil.predictNextCombatsRemainingLife(ai, playAggro, pilotsNonAggroDeck, 0, new CardCollection(notNeededAsBlockers));
+                lastAcceptableBaselineLife = ComputerUtil.predictNextCombatsRemainingLife(ai, playAggro, pilotsNonAggroDeck, 0, notNeededAsBlockers);
                 if (!ai.isCardInPlay("Laboratory Maniac")) {
                     // AI is getting milled out
                     thresholdMod += 3 - Math.min(ai.getCardsIn(ZoneType.Library).size(), 3);
@@ -397,7 +417,7 @@ public class AiAttackController {
                     continue;
                 }
                 notNeededAsBlockers.add(c);
-                int currentBaselineLife = ComputerUtil.predictNextCombatsRemainingLife(ai, playAggro, pilotsNonAggroDeck, 0, new CardCollection(notNeededAsBlockers));
+                int currentBaselineLife = ComputerUtil.predictNextCombatsRemainingLife(ai, playAggro, pilotsNonAggroDeck, 0, notNeededAsBlockers);
                 // AI doesn't know from what it will lose, so it might still keep an unnecessary blocker back sometimes
                 if (currentBaselineLife == Integer.MIN_VALUE) {
                     notNeededAsBlockers.remove(c);
@@ -797,13 +817,37 @@ public class AiAttackController {
                 } else {
                     if (combat.getAttackConstraints().getRequirements().get(attacker) == null) continue;
                     // check defenders in order of maximum requirements
-                    for (Pair<GameEntity, Integer> e : combat.getAttackConstraints().getRequirements().get(attacker).getSortedRequirements()) {
+                    List<Pair<GameEntity, Integer>> reqs = combat.getAttackConstraints().getRequirements().get(attacker).getSortedRequirements();
+                    final GameEntity def = defender;
+                    Collections.sort(reqs, new Comparator<Pair<GameEntity, Integer>>() {
+                        @Override
+                        public int compare(Pair<GameEntity, Integer> r1, Pair<GameEntity, Integer> r2) {
+                            if (r1.getValue() == r2.getValue()) {
+                                // try to attack the designated defender
+                                if (r1.getKey().equals(def) && !r2.getKey().equals(def)) {
+                                    return -1;
+                                }
+                                if (r2.getKey().equals(def) && !r1.getKey().equals(def)) {
+                                    return 1;    
+                                }
+                                // otherwise PW
+                                if (r1.getKey() instanceof Card && r2.getKey() instanceof Player) {
+                                    return -1;
+                                }
+                                if (r2.getKey() instanceof Card && r1.getKey() instanceof Player) {
+                                    return 1;
+                                }
+                                // or weakest player
+                                if (r1.getKey() instanceof Player && r2.getKey() instanceof Player) {
+                                    return ((Player) r1.getKey()).getLife() - ((Player) r2.getKey()).getLife();
+                                }
+                            }
+                            return r2.getValue() - r1.getValue();
+                        }
+                    });
+                    for (Pair<GameEntity, Integer> e : reqs) {
                         if (e.getRight() == 0) continue;
                         GameEntity mustAttackDefMaybe = e.getLeft();
-                        // Gideon Jura returns LKI
-                        if (mustAttackDefMaybe instanceof Card) {
-                            mustAttackDefMaybe = ai.getGame().getCardState((Card) mustAttackDefMaybe);
-                        }
                         if (canAttackWrapper(attacker, mustAttackDefMaybe) && CombatUtil.getAttackCost(ai.getGame(), attacker, mustAttackDefMaybe) == null) {
                             mustAttackDef = mustAttackDefMaybe;
                             break;
@@ -839,6 +883,7 @@ public class AiAttackController {
                 if (attackMax != -1 && combat.getAttackers().size() >= attackMax)
                     return aiAggression;
 
+                // TODO if lifeInDanger use chance to hold back some
                 if (canAttackWrapper(attacker, defender) && isEffectiveAttacker(ai, attacker, combat, defender)) {
                     combat.addAttacker(attacker, defender);
                 }
@@ -848,7 +893,7 @@ public class AiAttackController {
         }
 
         // Cards that are remembered to attack anyway (e.g. temporarily stolen creatures)
-        if (ai.getController() instanceof PlayerControllerAi) {
+        if (ai.getController().isAI()) {
             // Only do this if |ai| is actually an AI - as we could be trying to predict how the human will attack.
             for (Card attacker : this.attackers) {
                 if (AiCardMemory.isRememberedCard(ai, attacker, AiCardMemory.MemorySet.MANDATORY_ATTACKERS)) {
@@ -894,7 +939,7 @@ public class AiAttackController {
             aiAggression = 6;
             for (Card attacker : this.attackers) {
                 // reached max, breakup
-                if (attackMax != -1 && combat.getAttackers().size() >= attackMax)
+                if (combat.getAttackers().size() >= attackMax)
                     break;
                 if (canAttackWrapper(attacker, defender) && shouldAttack(attacker, this.blockers, combat, defender)) {
                     combat.addAttacker(attacker, defender);
@@ -1414,16 +1459,30 @@ public class AiAttackController {
             // if card has a Exert Trigger which would target,
             // but there are no creatures it can target, no need to exert with it
             boolean missTarget = false;
-            for (Trigger t : c.getTriggers()) {
-                if (!TriggerType.Exerted.equals(t.getMode())) {
+            for (StaticAbility st : c.getStaticAbilities()) {
+                if (!"OptionalAttackCost".equals(st.getParam("Mode"))) {
                     continue;
                 }
-                SpellAbility sa = t.ensureAbility();
+                SpellAbility sa = st.getPayingTrigSA();
                 if (sa == null) {
-                    continue;
+                    // not the delayed variant
+                    for (Trigger t : c.getTriggers()) {
+                        if (!TriggerType.Exerted.equals(t.getMode())) {
+                            continue;
+                        }
+                        sa = t.ensureAbility();
+                        if (c.getController().isAI()) {
+                            PlayerControllerAi aic = ((PlayerControllerAi) c.getController().getController());
+                            if (!aic.getAi().doTrigger(sa, false)) {
+                                missTarget = true;
+                                break;
+                            }
+                        }
+                    }
+                    break;
                 }
                 if (sa.usesTargeting()) {
-                    sa.setActivatingPlayer(c.getController());
+                    sa.setActivatingPlayer(c.getController(), true);
                     List<Card> validTargets = CardUtil.getValidCardsToTarget(sa.getTargetRestrictions(), sa);
                     if (validTargets.isEmpty()) {
                         missTarget = true;

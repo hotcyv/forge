@@ -42,6 +42,7 @@ import forge.game.GameEntityCounterTable;
 import forge.game.GameLogEntryType;
 import forge.game.GameObjectMap;
 import forge.game.ability.AbilityKey;
+import forge.game.ability.ApiType;
 import forge.game.card.Card;
 import forge.game.card.CardCollection;
 import forge.game.card.CardCollectionView;
@@ -203,7 +204,7 @@ public class Combat {
 
     //gets attacked player opponents (ignores planeswalkers)
     public final FCollection<Player> getAttackedOpponents(Player atk) {
-        FCollection<Player> attackedOpps = new FCollection<Player>();
+        FCollection<Player> attackedOpps = new FCollection<>();
         if (atk == playerWhoAttacks) {
             for (Player defender : getDefendingPlayers()) {
                 if (!getAttackersOf(defender).isEmpty()) {
@@ -678,7 +679,7 @@ public class Combat {
                     // Run Unblocked Trigger
                     final Map<AbilityKey, Object> runParams = AbilityKey.newMap();
                     runParams.put(AbilityKey.Attacker, attacker);
-                    runParams.put(AbilityKey.Defender,getDefenderByAttacker(attacker));
+                    runParams.put(AbilityKey.Defender, getDefenderByAttacker(attacker));
                     runParams.put(AbilityKey.DefendingPlayer, getDefenderPlayerByAttacker(attacker));
                     game.getTriggerHandler().runTrigger(TriggerType.AttackerUnblocked, runParams, false);
                 }
@@ -795,7 +796,7 @@ public class Combat {
                 assigningPlayer = orderedBlockers.get(0).getController();
             }
 
-            final SpellAbility emptySA = new SpellAbility.EmptySa(attacker);
+            final SpellAbility emptySA = new SpellAbility.EmptySa(ApiType.Cleanup, attacker);
 
             boolean assignToPlayer = false;
             if (StaticAbilityAssignCombatDamageAsUnblocked.assignCombatDamageAsUnblocked(attacker, false)) {
@@ -846,8 +847,7 @@ public class Combat {
             // If the Attacker is unblocked, or it's a trampler and has 0 blockers, deal damage to defender
             if (defender instanceof Card && attacker.hasKeyword("Trample:Planeswalker")) {
                 if (orderedBlockers == null || orderedBlockers.isEmpty()) {
-                    CardCollection cc = new CardCollection();
-                    cc.add((Card)defender);
+                    CardCollection cc = new CardCollection((Card) defender);
                     orderedBlockers = cc;
                 } else {
                     orderedBlockers.add((Card) defender);
@@ -862,7 +862,7 @@ public class Combat {
                 attackers.remove(attacker);
                 if (assignCombatDamageToCreature) {
                     Card chosen = attacker.getController().getController().chooseCardsForEffect(getDefendersCreatures(),
-                            null, Localizer.getInstance().getMessage("lblChooseCreature"), 1, 1, false, null).get(0);
+                            emptySA, Localizer.getInstance().getMessage("lblChooseCreature"), 1, 1, false, null).get(0);
                     damageMap.put(attacker, chosen, damageDealt);
                 } else if (trampler || !band.isBlocked()) { // this is called after declare blockers, no worries 'bout nulls in isBlocked
                     damageMap.put(attacker, defender, damageDealt);

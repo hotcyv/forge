@@ -11,6 +11,7 @@ import forge.game.cost.CostPayEnergy;
 import forge.game.keyword.Keyword;
 import forge.game.spellability.SpellAbility;
 import forge.game.staticability.StaticAbilityAssignCombatDamageAsUnblocked;
+import forge.game.staticability.StaticAbilityCantAttackBlock;
 import forge.game.staticability.StaticAbilityMustAttack;
 
 import java.util.List;
@@ -60,7 +61,8 @@ public class CreatureEvaluator implements Function<Card, Integer> {
         if (c.hasKeyword(Keyword.HORSEMANSHIP)) {
             value += addValue(power * 10, "horses");
         }
-        if (c.hasKeyword("Unblockable")) {
+
+        if (StaticAbilityCantAttackBlock.cantBlockBy(c, null)) {
             value += addValue(power * 10, "unblockable");
         } else {
             if (StaticAbilityAssignCombatDamageAsUnblocked.assignCombatDamageAsUnblocked(c)
@@ -104,10 +106,11 @@ public class CreatureEvaluator implements Function<Card, Integer> {
                 value += addValue(power * 15, "infect");
             }
             else if (c.hasKeyword(Keyword.WITHER)) {
-                value += addValue(power * 10, "Wither");
+                value += addValue(power * 10, "wither");
             }
-            value += addValue(c.getKeywordMagnitude(Keyword.RAMPAGE), "rampage");
+            value += addValue(c.getKeywordMagnitude(Keyword.TOXIC) * 5, "toxic");
             value += addValue(c.getKeywordMagnitude(Keyword.AFFLICT) * 5, "afflict");
+            value += addValue(c.getKeywordMagnitude(Keyword.RAMPAGE), "rampage");
         }
 
         value += addValue(c.getKeywordMagnitude(Keyword.ANNIHILATOR) * 50, "eldrazi");

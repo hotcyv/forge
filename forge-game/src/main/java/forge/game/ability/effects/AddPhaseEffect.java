@@ -12,7 +12,7 @@ import forge.game.spellability.SpellAbility;
 import forge.game.trigger.Trigger;
 import forge.game.trigger.TriggerHandler;
 
-/** 
+/**
  * TODO: Write javadoc for this type.
  *
  */
@@ -67,6 +67,7 @@ public class AddPhaseEffect extends SpellAbilityEffect {
             SpellAbility overridingSA = AbilityFactory.getAbility(sa.getSVar(sa.getParam("ExtraPhaseDelayedTriggerExcute")), sa.getHostCard());
             overridingSA.setActivatingPlayer(sa.getActivatingPlayer());
             delTrig.setOverridingAbility(overridingSA);
+            delTrig.setSpawningAbility(sa.copy(sa.getHostCard(), sa.getActivatingPlayer(), true));
             extraPhase.addTrigger(delTrig);
         }
     }

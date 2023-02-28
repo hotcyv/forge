@@ -62,8 +62,8 @@ public final class CardUtil {
             "Enchant", "Protection", "Cumulative upkeep", "Equip", "Buyback",
             "Cycling", "Echo", "Kicker", "Flashback", "Madness", "Morph",
             "Affinity", "Entwine", "Splice", "Ninjutsu", "Presence",
-            "Transmute", "Replicate", "Recover", "Suspend", "Aura swap",
-            "Fortify", "Transfigure", "Champion", "Evoke", "Prowl", "IfReach",
+            "Transmute", "Replicate", "Recover", "Squad", "Suspend", "Aura swap",
+            "Fortify", "Transfigure", "Champion", "Evoke", "Prowl",
             "Reinforce", "Unearth", "Level up", "Miracle", "Overload", "Cleave",
             "Scavenge", "Encore", "Bestow", "Outlast", "Dash", "Surge", "Emerge", "Hexproof:",
             "etbCounter", "Reflect", "Ward").build();
@@ -92,14 +92,6 @@ public final class CardUtil {
         }
 
         return !kw.startsWith("Protection") && !NON_STACKING_LIST.contains(kw);
-    }
-
-    public static String getShortColorsString(final Iterable<String> colors) {
-        StringBuilder colorDesc = new StringBuilder();
-        for (final String col : colors) {
-            colorDesc.append(MagicColor.toShortString(col)).append(" ");
-        }
-        return colorDesc.toString();
     }
 
     /**
@@ -232,7 +224,6 @@ public final class CardUtil {
         }
         //*/
 
-        newCopy.setType(new CardType(in.getType()));
         newCopy.setToken(in.isToken());
         newCopy.setCopiedSpell(in.isCopiedSpell());
         newCopy.setImmutable(in.isImmutable());
@@ -247,28 +238,46 @@ public final class CardUtil {
 
         newCopy.setCounters(Maps.newHashMap(in.getCounters()));
 
+        newCopy.setTributed(in.isTributed());
+        newCopy.setMonstrous(in.isMonstrous());
+        newCopy.setRenowned(in.isRenowned());
+
         newCopy.setColor(in.getColor().getColor());
-        newCopy.setPhasedOut(in.isPhasedOut());
+        newCopy.setPhasedOut(in.getPhasedOut());
+
+        newCopy.setTapped(in.isTapped());
 
         newCopy.setDamageHistory(in.getDamageHistory());
         newCopy.setDamageReceivedThisTurn(in.getDamageReceivedThisTurn());
-        for (Card c : in.getBlockedThisTurn()) {
-            newCopy.addBlockedThisTurn(c);
-        }
-        for (Card c : in.getBlockedByThisTurn()) {
-            newCopy.addBlockedByThisTurn(c);
-        }
+
+        // these are LKI already
+        newCopy.getBlockedThisTurn().addAll(in.getBlockedThisTurn());
+        newCopy.getBlockedByThisTurn().addAll(in.getBlockedByThisTurn());
 
         newCopy.setAttachedCards(getLKICopyList(in.getAttachedCards(), cachedMap));
         newCopy.setEntityAttachedTo(getLKICopy(in.getEntityAttachedTo(), cachedMap));
 
-        newCopy.setHaunting(in.getHaunting());
         newCopy.setCopiedPermanent(in.getCopiedPermanent());
+
+        newCopy.setHaunting(in.getHaunting());
         for (final Card haunter : in.getHauntedBy()) {
             newCopy.addHauntedBy(haunter, false);
         }
+
+        newCopy.setIntensity(in.getIntensity(false));
+
         newCopy.addRemembered(in.getRemembered());
         newCopy.addImprintedCards(in.getImprintedCards());
+        newCopy.setChosenCards(in.getChosenCards());
+
+        newCopy.setChosenType(in.getChosenType());
+        newCopy.setChosenType2(in.getChosenType2());
+        newCopy.setChosenName(in.getChosenName());
+        newCopy.setChosenName2(in.getChosenName2());
+        newCopy.setChosenColors(Lists.newArrayList(in.getChosenColors()));
+        if (in.hasChosenNumber()) {
+            newCopy.setChosenNumber(in.getChosenNumber());
+        }
 
         for (Table.Cell<Player, CounterType, Integer> cl : in.getEtbCounters()) {
             newCopy.addEtbCounter(cl.getColumnKey(), cl.getValue(), cl.getRowKey());
@@ -284,7 +293,11 @@ public final class CardUtil {
         newCopy.setChangedCardNames(in.getChangedCardNames());
         newCopy.setChangedCardTraits(in.getChangedCardTraits());
 
+        newCopy.setStoredKeywords(in.getStoredKeywords(), true);
+
         newCopy.copyChangedTextFrom(in);
+
+        newCopy.setTimestamp(in.getTimestamp());
 
         newCopy.setBestowTimestamp(in.getBestowTimestamp());
 
@@ -293,8 +306,6 @@ public final class CardUtil {
         newCopy.setForetoldByEffect(in.isForetoldByEffect());
 
         newCopy.setMeldedWith(getLKICopy(in.getMeldedWith(), cachedMap));
-
-        newCopy.setTimestamp(in.getTimestamp());
 
         // update keyword cache on all states
         for (CardStateName s : newCopy.getStates()) {
@@ -317,6 +328,7 @@ public final class CardUtil {
 
         newCopy.setExiledBy(in.getExiledBy());
         newCopy.setExiledWith(getLKICopy(in.getExiledWith(), cachedMap));
+        newCopy.addExiledCards(in.getExiledCards());
 
         if (in.getGame().getCombat() != null && in.isPermanent()) {
             newCopy.setCombatLKI(in.getGame().getCombat().saveLKI(newCopy)); 
@@ -362,9 +374,9 @@ public final class CardUtil {
         return res;
     }
 
-    public static ColorSet getColorsYouCtrl(final Player p) {
+    public static ColorSet getColorsFromCards(Iterable<Card> list) {
         byte b = 0;
-        for (Card c : p.getCardsIn(ZoneType.Battlefield)) {
+        for (Card c : list) {
             b |= c.getColor().getColor();
         }
         return ColorSet.fromMask(b);
@@ -530,27 +542,25 @@ public final class CardUtil {
     // however, due to the changes necessary for SA_Requirements this is much
     // different than the original
     public static List<Card> getValidCardsToTarget(TargetRestrictions tgt, SpellAbility ability) {
-        Card activatingCard = ability.getHostCard();
+        final Card activatingCard = ability.getHostCard();
         final Game game = ability.getActivatingPlayer().getGame();
         final List<ZoneType> zone = tgt.getZone();
 
         final boolean canTgtStack = zone.contains(ZoneType.Stack);
-        List<Card> validCards = CardLists.getValidCards(game.getCardsIn(zone), tgt.getValidTgts(), ability.getActivatingPlayer(), ability.getHostCard(), ability);
+        List<Card> validCards = CardLists.getValidCards(game.getCardsIn(zone), tgt.getValidTgts(), ability.getActivatingPlayer(), activatingCard, ability);
         List<Card> choices = CardLists.getTargetableCards(validCards, ability);
         if (canTgtStack) {
             // Since getTargetableCards doesn't have additional checks if one of the Zones is stack
             // Remove the activating card from targeting itself if its on the Stack
             if (activatingCard.isInZone(ZoneType.Stack)) {
-                choices.remove(ability.getHostCard());
+                choices.remove(activatingCard);
             }
         }
         List<GameObject> targetedObjects = ability.getUniqueTargets();
 
         // Remove cards already targeted
         final List<Card> targeted = Lists.newArrayList(ability.getTargets().getTargetCards());
-        for (final Card c : targeted) {
-            choices.remove(c);
-        }
+        choices.removeAll(targeted);
 
         // Remove cards exceeding total CMC
         if (ability.hasParam("MaxTotalTargetCMC")) {

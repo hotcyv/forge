@@ -17,7 +17,6 @@
  */
 package forge.game.staticability;
 
-import forge.game.Game;
 import forge.game.GameEntity;
 import forge.game.card.Card;
 import forge.game.zone.ZoneType;
@@ -32,9 +31,9 @@ public class StaticAbilityCanAttackDefender {
 
     public static boolean canAttack(final Card card, final GameEntity target) {
         // CanAttack static abilities
-        for (final Card ca : target.getGame().getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
+        for (final Card ca : card.getGame().getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
             for (final StaticAbility stAb : ca.getStaticAbilities()) {
-                if (!stAb.getParam("Mode").equals(MODE) || stAb.isSuppressed() || !stAb.checkConditions()) {
+                if (!stAb.checkConditions(MODE)) {
                     continue;
                 }
 
@@ -47,8 +46,6 @@ public class StaticAbilityCanAttackDefender {
     }
 
     public static boolean applyCanAttackAbility(final StaticAbility stAb, final Card card, final GameEntity target) {
-        final Card hostCard = stAb.getHostCard();
-        final Game game = hostCard.getGame();
 
         if (!stAb.matchesValidParam("ValidCard", card)) {
             return false;

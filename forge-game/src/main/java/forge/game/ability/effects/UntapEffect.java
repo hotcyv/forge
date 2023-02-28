@@ -43,20 +43,13 @@ public class UntapEffect extends SpellAbilityEffect {
         } else if (sa.hasParam("UntapExactly")) {
             untapChoose(sa, true);
         } else {
-            final CardCollection untargetedCards = CardUtil.getRadiance(sa);
-            for (final Card tgtC : getTargetCards(sa)) {
-                if (sa.usesTargeting() && !tgtC.canBeTargetedBy(sa)) {
+            final CardCollection affectedCards = getTargetCards(sa);
+            affectedCards.addAll(CardUtil.getRadiance(sa));
+
+            for (final Card tgtC : affectedCards) {
+                if (tgtC.isPhasedOut()) {
                     continue;
                 }
-                if (tgtC.isInPlay()) {
-                    tgtC.untap(true);
-                }
-                if (sa.hasParam("ETB")) {
-                    // do not fire triggers
-                    tgtC.setTapped(false);
-                }
-            }
-            for (final Card tgtC : untargetedCards) {
                 if (tgtC.isInPlay()) {
                     tgtC.untap(true);
                 }
@@ -72,7 +65,7 @@ public class UntapEffect extends SpellAbilityEffect {
      * <p>
      * Choose cards to untap.
      * </p>
-     * 
+     *
      * @param sa
      *            a {@link SpellAbility}.
      * @param mandatory
@@ -83,13 +76,17 @@ public class UntapEffect extends SpellAbilityEffect {
         final String valid = sa.getParam("UntapType");
 
         for (final Player p : AbilityUtils.getDefinedPlayers(sa.getHostCard(), sa.getParam("Defined"), sa)) {
+            if (!p.isInGame()) {
+                continue;
+            }
+
             CardCollectionView list = CardLists.getValidCards(p.getGame().getCardsIn(ZoneType.Battlefield),
                     valid, sa.getActivatingPlayer(), sa.getHostCard(), sa);
             list = CardLists.filter(list, Presets.TAPPED);
 
             final CardCollectionView selected = p.getController().chooseCardsForEffect(list, sa, Localizer.getInstance().getMessage("lblSelectCardToUntap"), mandatory ? num : 0, num, !mandatory, null);
             if (selected != null) {
-                for (final Card c : selected) { 
+                for (final Card c : selected) {
                     c.untap(true);
                 }
             }

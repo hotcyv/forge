@@ -23,8 +23,10 @@ import forge.ai.ComputerUtilMana;
 import forge.ai.PlayerControllerAi;
 import forge.ai.SpecialCardAi;
 import forge.ai.SpellAbilityAi;
+import forge.card.MagicColor;
 import forge.card.mana.ManaCost;
 import forge.game.Game;
+import forge.game.GameEntity;
 import forge.game.GameObject;
 import forge.game.ability.AbilityUtils;
 import forge.game.ability.ApiType;
@@ -209,7 +211,7 @@ public class DamageDealAi extends DamageAiBase {
             if (ai.getGame().getPhaseHandler().is(PhaseType.END_OF_TURN)) {
                 boolean doTarget = damageTargetAI(ai, sa, dmg, true);
                 if (doTarget) {
-                    Card tgt = sa.getTargets().getFirstTargetedCard();
+                    Card tgt = sa.getTargetCard();
                     if (tgt != null) {
                         return ai.getGame().getPhaseHandler().getPlayerTurn() == tgt.getController();
                     }
@@ -429,7 +431,7 @@ public class DamageDealAi extends DamageAiBase {
         final Game game = source.getGame();
         List<Card> hPlay = CardLists.filter(getTargetableCards(ai, sa, pl, tgt, activator, source, game), CardPredicates.Presets.PLANESWALKERS);
 
-        List<Card> killables = CardLists.filter(hPlay, new Predicate<Card>() {
+        CardCollection killables = CardLists.filter(hPlay, new Predicate<Card>() {
             @Override
             public boolean apply(final Card c) {
                 return c.getSVar("Targeting").equals("Dies")
@@ -440,7 +442,7 @@ public class DamageDealAi extends DamageAiBase {
         });
 
         // Filter AI-specific targets if provided
-        killables = ComputerUtil.filterAITgts(sa, ai, new CardCollection(killables), true);
+        killables = ComputerUtil.filterAITgts(sa, ai, killables, true);
 
         // We can kill a planeswalker, so go for it
         if (pl.isOpponentOf(ai) && activator.equals(ai) && !killables.isEmpty()) {
@@ -672,7 +674,7 @@ public class DamageDealAi extends DamageAiBase {
                 c = dealDamageChooseTgtC(ai, sa, dmg, noPrevention, enemy, false);
                 if (c != null) {
                     //option to hold removal instead only applies for single targeted removal
-                    if (sa.isSpell() && !divided && !immediately && tgt.getMaxTargets(sa.getHostCard(), sa) == 1) {
+                    if (sa.isSpell() && !divided && !immediately && tgt.getMaxTargets(source, sa) == 1) {
                         if (!ComputerUtilCard.useRemovalNow(sa, c, dmg, ZoneType.Graveyard)) {
                             return false;
                         }
@@ -723,7 +725,7 @@ public class DamageDealAi extends DamageAiBase {
                 final Card c = dealDamageChooseTgtC(ai, sa, dmg, noPrevention, enemy, mandatory);
                 if (c != null) {
                     //option to hold removal instead only applies for single targeted removal
-                    if (!immediately && tgt.getMaxTargets(sa.getHostCard(), sa) == 1 && !divided) {
+                    if (!immediately && tgt.getMaxTargets(source, sa) == 1 && !divided) {
                         if (!ComputerUtilCard.useRemovalNow(sa, c, dmg, ZoneType.Graveyard)) {
                             return false;
                         }
@@ -737,11 +739,7 @@ public class DamageDealAi extends DamageAiBase {
                             dump = true;
                         }
                         final int assignedDamage = dump ? dmg : ComputerUtilCombat.getEnoughDamageToKill(c, dmg, source, false, noPrevention);
-                        if (assignedDamage <= dmg) {
-                            sa.addDividedAllocation(c, assignedDamage);
-                        } else {
-                            sa.addDividedAllocation(c, dmg);
-                        }
+                        sa.addDividedAllocation(c, Math.min(assignedDamage, dmg));
                         dmg = dmg - assignedDamage;
                         if (dmg <= 0) {
                             break;
@@ -751,10 +749,12 @@ public class DamageDealAi extends DamageAiBase {
                 }
             } else if ("OppAtTenLife".equals(logic)) {
                 for (final Player p : ai.getOpponents()) {
-                    if (sa.canTarget(p) && p.getLife() == 10 && tcs.size() < tgt.getMaxTargets(source, sa)) {
+                    if (sa.canTarget(p) && p.getLife() == 10) {
                         tcs.add(p);
+                        return true;
                     }
                 }
+                return false;
             }
             // TODO: Improve Damage, we shouldn't just target the player just because we can
             if (sa.canTarget(enemy) && tcs.size() < tgt.getMaxTargets(source, sa)) {
@@ -781,6 +781,13 @@ public class DamageDealAi extends DamageAiBase {
             sa.resetTargets();
             return false;
         }
+
+        // if opponent will gain life (ex. Fiery Justice), don't target only enemy player unless life gain is harmful or ignored
+        if ("OpponentGainLife".equals(logic) && tcs.size() == 1 && tcs.contains(enemy) && ComputerUtil.lifegainPositive(enemy, source)) {
+            sa.resetTargets();
+            return false;
+        }
+
         return true;
     }
 
@@ -798,11 +805,11 @@ public class DamageDealAi extends DamageAiBase {
      */
     private boolean damageChooseNontargeted(Player ai, final SpellAbility saMe, final int dmg) {
         // TODO: Improve circumstances where the Defined Damage is unwanted
-        final List<GameObject> objects = AbilityUtils.getDefinedObjects(saMe.getHostCard(), saMe.getParam("Defined"), saMe);
+        final List<GameEntity> objects = AbilityUtils.getDefinedEntities(saMe.getHostCard(), saMe.getParam("Defined"), saMe);
         boolean urgent = false; // can it wait?
         boolean positive = false;
 
-        for (final Object o : objects) {
+        for (final GameEntity o : objects) {
             if (o instanceof Card) {
                 Card c = (Card) o;
                 final int restDamage = ComputerUtilCombat.predictDamageTo(c, dmg, saMe.getHostCard(), false);
@@ -1005,7 +1012,7 @@ public class DamageDealAi extends DamageAiBase {
         Player opponent = ai.getWeakestOpponent();
 
         // TODO: somehow account for the possible cost reduction?
-        int dmg = ComputerUtilMana.determineLeftoverMana(sa, ai, saTgt.getParam("XColor"), false);
+        int dmg = ComputerUtilMana.determineLeftoverMana(sa, ai, MagicColor.toShortString(saTgt.getParam("XColor")), false);
 
         while (!ComputerUtilMana.canPayManaCost(sa, ai, dmg, false) && dmg > 0) {
             // TODO: ideally should never get here, currently put here as a precaution for complex mana base cases where the miscalculation might occur. Will remove later if it proves to never trigger.
