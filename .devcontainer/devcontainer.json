@@ -4,6 +4,7 @@
     "ghcr.io/devcontainers/features/java:1": {
     "version": "8",
     "installMaven": true,
+    "jdkDistro": "open",
     "mavenVersion": "3.5.4"
     }
   }
