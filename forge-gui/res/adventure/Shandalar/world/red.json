@@ -62,7 +62,9 @@
 	"Viashino",
 	"Wild-Magic Sorcerer",
 	"Yeti",
-	"Kobold"
+	"Kobold",
+	"Boar",
+	"Bull"
 ],
 "pointsOfInterest": [
 	"Red Castle",
@@ -108,7 +110,8 @@
 	"CaveRG",
 	"CaveRH",
 	"CaveRJ",
-	"Kobold Mine"
+	"Kobold Mine",
+	"Temple of Chandra"
 ],
 "structures": [
 	{

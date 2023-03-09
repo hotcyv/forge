@@ -1788,6 +1788,15 @@
 	"map": "maps/map/lichsmirror.tmx"
 },
 {
+	"name": "Temple of Chandra",
+	"type": "dungeon",
+	"count": 1,
+	"radiusFactor": 0.8,
+	"spriteAtlas": "maps/tileset/buildings.atlas",
+	"sprite": "hall_of_flame",
+	"map": "maps/map/main_story/TempleOfChandra.tmx"
+},
+{
 	"name": "Crawlspace",
 	"type": "dungeon",
 	"count": 1,
@@ -1894,5 +1903,14 @@
 	"spriteAtlas": "maps/tileset/buildings.atlas",
 	"sprite": "EvilGrove",
 	"map": "maps/map/garruk.tmx"
+},
+{
+	"name": "Scarecrow Farm",
+	"type": "dungeon",
+	"count": 1,
+	"radiusFactor": 0.8,
+	"spriteAtlas": "maps/tileset/buildings.atlas",
+	"sprite": "farm",
+	"map": "maps/map/scarecrow_farm.tmx"
 }
 ]
