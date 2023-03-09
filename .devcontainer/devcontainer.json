@@ -1,11 +1,5 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "features": {
-    "ghcr.io/devcontainers/features/java:1": {
-    "version": "8",
-    "installMaven": true,
-    "jdkDistro": "open",
-    "mavenVersion": "3.5.4"
-    }
+  "image": "mcr.microsoft.com/devcontainers/java:8",
+  "features": {}
   }
 }
