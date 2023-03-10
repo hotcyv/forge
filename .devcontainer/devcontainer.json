@@ -3,6 +3,11 @@
   "features": {
     "ghcr.io/devcontainers/features/java:1": {
     "installMaven": true
+    },
+    "ghcr.io/jarrodcolburn/features/android-sdk:0": {
+    "platforms" : "26",
+    "build-tools" : "26.0.3",
+    "emulator" : true
     }
   }
 }
