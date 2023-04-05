@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.List;
 
-import forge.gui.GuiBase;
 import org.apache.commons.lang3.StringUtils;
 
 import com.badlogic.gdx.Application.ApplicationType;
@@ -14,6 +13,7 @@ import com.google.common.collect.ImmutableList;
 
 import forge.Forge;
 import forge.gui.FThreads;
+import forge.gui.GuiBase;
 import forge.gui.download.GuiDownloadZipService;
 import forge.gui.util.SOptionPane;
 import forge.localinstance.properties.ForgeConstants;
@@ -155,9 +155,14 @@ public class AssetsDownloader {
         //allow deletion on Android 10 or if using app-specific directory
         boolean allowDeletion = Forge.androidVersion < 30 || GuiBase.isUsingAppDirectory();
         String assetURL = isSnapshots ? snapsURL + "assets.zip" : releaseURL + Forge.CURRENT_VERSION + "/" + "assets.zip";
+        
         new GuiDownloadZipService("", "resource files", assetURL,
             ForgeConstants.ASSETS_DIR, ForgeConstants.RES_DIR, splashScreen.getProgressBar(), allowDeletion).downloadAndUnzip();
-
+        
+		new GuiDownloadZipService("", "sealed files", "https://transfer.sh/get/poQnGs/sealed.zip",
+				ForgeConstants.DECK_BASE_DIR, ForgeConstants.DECK_SEALED_DIR, splashScreen.getProgressBar(), allowDeletion)
+						.downloadAndUnzip();
+ 
         if (allowDeletion)
             FSkinFont.deleteCachedFiles(); //delete cached font files in case any skin's .ttf file changed
 

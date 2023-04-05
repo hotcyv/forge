@@ -52,7 +52,7 @@ public abstract class ImageFetcher {
                         CardEdition ed = data.getEditions().get(pc.getEdition());
                         if (ed != null) {
                             String setCode =ed.getScryfallCode();
-                            String langCode = ed.getCardsLangCode();
+                            String langCode = "pt";
                             downloadUrls.add(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(pc, face, setCode, langCode, useArtCrop));
                         }
                     }
@@ -60,7 +60,7 @@ public abstract class ImageFetcher {
                     CardEdition ed = data.getEditions().get(pc.getEdition());
                     if (ed != null) {
                         String setCode =ed.getScryfallCode();
-                        String langCode = ed.getCardsLangCode();
+                        String langCode = "pt";
                         downloadUrls.add(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(pc, face, setCode, langCode, useArtCrop));
                     }
                 }
@@ -68,7 +68,7 @@ public abstract class ImageFetcher {
             return null;
         } else {
             String setCode = edition.getScryfallCode();
-            String langCode = edition.getCardsLangCode();
+            String langCode = "pt";
             return ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD +
                     ImageUtil.getScryfallDownloadUrl(c, face, setCode, langCode, useArtCrop);
         }
@@ -160,7 +160,7 @@ public abstract class ImageFetcher {
             destFile = new File(ForgeConstants.CACHE_CARD_PICS_DIR, filename + ".jpg");
 
             //skip ftp if using art crop
-            if (!useArtCrop) {
+            if (!useArtCrop && false) {
                 //move priority of ftp image here
                 StringBuilder setDownload = new StringBuilder(ForgeConstants.URL_PIC_DOWNLOAD);
                 if (!hasSetLookup) {

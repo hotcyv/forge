@@ -80,6 +80,12 @@ public class LibGDXImageFetcher extends ImageFetcher {
                     break;
                 } catch (IOException e) {
                     System.out.println("Failed to download card [" + destPath + "] image: " + e.getMessage());
+                    try {
+                        doFetch(tofullBorder(urlToDownload.replace("/pt?","/en?")));
+                        break;
+                    } catch (IOException t) {
+                        System.out.println("Failed to download english version: " + e.getMessage());
+                    }
                     if (urlToDownload.contains("tokens")) {
                         int setIndex = urlToDownload.lastIndexOf('_');
                         int typeIndex = urlToDownload.lastIndexOf('.');
